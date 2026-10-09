@@ -1,9 +1,10 @@
-from typing import Callable
+from collections.abc import Callable
+
 from utils.TimeKeeper import now
 
 DEFAULT_TTL = 60
 
-class App():
+class App:
 
     id: str
     name: str

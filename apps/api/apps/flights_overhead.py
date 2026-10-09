@@ -1,11 +1,11 @@
-from models.App import App
-from config import settings
-from PIL import Image
-from io import BytesIO
 import math
+from io import BytesIO
+
 import requests
-from utils.draw import Text, DISP_HEIGHT, DISP_WIDTH
+from config import settings
+from models.App import App
 from PIL import Image, ImageDraw, ImageFont
+from utils.draw import DISP_HEIGHT, DISP_WIDTH, Text
 
 FLIGHTS_OVERHEAD_TTL = 120 #seconds
 

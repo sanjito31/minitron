@@ -1,10 +1,10 @@
-import requests
-from google.transit import gtfs_realtime_pb2
 import time
-from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 
+import requests
+from google.transit import gtfs_realtime_pb2
 from models.App import App
+from PIL import Image, ImageDraw, ImageFont
 from utils.draw import Text
 
 ROUTES_CSV_PATH = "./assets/gtfs_subway/stops.txt"

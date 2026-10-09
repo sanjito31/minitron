@@ -35,10 +35,10 @@ minitron-led-panel-api/
 ├── main.py              # FastAPI application entry point
 ├── config.py            # Environment configuration using Pydantic
 ├── apps/                # Individual display apps
-│   ├── Clock.py         # Clock display
-│   ├── Weather.py       # Weather display
-│   ├── MTA.py           # NYC Subway times
-│   └── FlightsOverhead.py  # Flight tracking
+│   ├── clock.py         # Clock display
+│   ├── weather_display.py       # Weather display
+│   ├── mta.py           # NYC Subway times
+│   └── flights_overhead.py  # Flight tracking
 ├── models/
 │   ├── App.py           # Base app model
 │   └── Carousel.py      # App rotation logic
@@ -55,7 +55,7 @@ minitron-led-panel-api/
 
 ## Prerequisites
 
-- Python 3.13+
+- Python 3.13 (the pinned dependencies do not support Python 3.14)
 - Docker (optional, for containerized deployment)
 
 ## Environment Variables
@@ -92,13 +92,13 @@ SPOTIFY_REDIRECT_URI=your_redirect_uri
 
 2. Create and activate a virtual environment:
    ```bash
-   python -m venv .venv
+   python3.13 -m venv .venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    ```
 
 3. Install dependencies:
    ```bash
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 
 4. Create your `.env` file with the required environment variables.
@@ -112,6 +112,21 @@ SPOTIFY_REDIRECT_URI=your_redirect_uri
    ```bash
    uvicorn main:server --reload --host 0.0.0.0 --port 8000
    ```
+
+If dependency installation fails with `the configured Python interpreter version
+(3.14) is newer than PyO3's maximum supported version (3.13)`, recreate the
+virtual environment with Python 3.13. From the API directory:
+
+```bash
+deactivate  # If a virtual environment is active
+mv .venv .venv-python314-backup
+python3.13 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+On macOS, install Python 3.13 with `brew install python@3.13` if needed.
+Changing the system Python does not change an existing virtual environment.
 
 ### Docker Deployment
 

@@ -1,6 +1,7 @@
-from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
-from math import sin, cos, radians
+from math import cos, radians, sin
+
+from PIL import Image, ImageDraw, ImageFont
 
 DISP_WIDTH      = 64
 DISP_HEIGHT     = 32

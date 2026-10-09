@@ -1,10 +1,10 @@
-from models.App import App
-from utils.TimeKeeper import now
-from utils.draw import Text, DISP_HEIGHT, DISP_WIDTH
-from config import settings
-import requests
-from PIL import Image, ImageDraw, ImageFont, ImageOps
 from io import BytesIO
+
+import requests
+from config import settings
+from models.App import App
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+from utils.draw import DISP_HEIGHT, DISP_WIDTH, Text
 
 ICON_DIR = "./assets/weather"
 ICON_SIZE = 16

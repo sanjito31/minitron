@@ -1,12 +1,11 @@
 from datetime import datetime
-from pytz import timezone as pytz_timezone
+from io import BytesIO
+from math import cos, radians, sin
 
 from models.App import App
-from utils.draw import DISP_HEIGHT, DISP_WIDTH, Text
-
 from PIL import Image, ImageDraw, ImageFont
-from io import BytesIO
-from math import sin, cos, radians
+from pytz import timezone as pytz_timezone
+from utils.draw import DISP_HEIGHT, DISP_WIDTH, Text
 
 DEFAULT_TIMEZONE = "US/Eastern"
 DEFAULT_FORMAT = "%-I:%M%p"

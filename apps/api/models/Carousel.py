@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+
 from models.App import App
 
 
