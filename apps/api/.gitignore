@@ -1,0 +1,15 @@
+.env
+__pycache__
+.venv
+gtfs_subway
+.idea/
+.spotify_tokens.json
+misc
+checkerboard.py
+checkerboard.webp
+app.log
+.DS_Store
+graveyard.py
+fonts
+archive
+.claude

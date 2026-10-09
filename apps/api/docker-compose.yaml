@@ -1,0 +1,8 @@
+services:
+  web:
+    build: .
+    container_name: tidbyt-clone-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app

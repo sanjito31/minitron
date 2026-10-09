@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.venv/
+.git/
+.pytest_cache/
+Dockerfile
+docker-compose.*
