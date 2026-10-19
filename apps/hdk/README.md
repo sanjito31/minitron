@@ -67,8 +67,11 @@ in a separate FreeRTOS task, so a slow API request does not block OTA servicing.
 New image requests pause during OTA, and an active image body download checks
 for OTA cancellation between reads. HTTP connection and read timeouts are
 3 seconds; the image body loop also enforces a 15-second request deadline.
-Existing graphics rendering continues during an update; freezing the display
-is a separate integration step.
+During OTA, the graphics task stops starting new frames and leaves the last
+frame in the display buffer. An in-flight frame can finish before rendering
+pauses. An interrupted animation releases its decoder; after an OTA error,
+rendering resumes from the beginning of the current animation. Successful
+updates reboot into the new firmware.
 
 ### 3. Build and Upload
 

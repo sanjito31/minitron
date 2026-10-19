@@ -1,6 +1,7 @@
 #include <Adafruit_GFX.h>
 #include "graphics.h"
 #include "display.h"
+#include "ota.h"
 
 extern "C" {
     #include "webp/demux.h"
@@ -67,6 +68,12 @@ void loop_graphics(void *arg)
 	int counter = -1;
 
 	for (;;) {
+		if (ota_update_in_progress()) {
+			// Leave the current frame in the display buffer while OTA runs.
+			vTaskDelay(pdMS_TO_TICKS(10));
+			continue;
+		}
+
 		if (pdTRUE != xSemaphoreTake(state->_mutex, portMAX_DELAY)) {
 			Serial.println("Could not take mutex.");
 			return;
@@ -135,6 +142,10 @@ int update_graphics(const void *webp, size_t len)
 
 int draw_webp_graphic(uint8_t *buf, size_t len)
 {
+	if (ota_update_in_progress()) {
+		return 0;
+	}
+
 	WebPData webpData;
   	WebPDataInit(&webpData);
   	webpData.bytes = buf;
@@ -162,21 +173,28 @@ int draw_webp_graphic(uint8_t *buf, size_t len)
 
   	// Draw each frame, and sleep for the delay
   	for (int j = 0; j < animation.frame_count; j++) {
+		if (ota_update_in_progress()) {
+			break;
+		}
+
     		uint8_t *pix;
     		int timestamp;
     		WebPAnimDecoderGetNext(decoder, &pix, &timestamp);
     		if (delay > 0)
       			xTaskDelayUntil(&drawStartTick, pdMS_TO_TICKS(delay));
+		if (ota_update_in_progress()) {
+			break;
+		}
     		drawStartTick = xTaskGetTickCount();
     		display_draw(pix, animation.canvas_width, animation.canvas_height, 4, 0, 1, 2);
     		delay = timestamp - lastTimestamp;
     		lastTimestamp = timestamp;
 	}
-  	if (delay > 0)
+	if (delay > 0 && !ota_update_in_progress())
     		xTaskDelayUntil(&drawStartTick, pdMS_TO_TICKS(delay));
 
   	// In case of a single frame, sleep for 1s
-  	if (animation.frame_count == 1) {
+	if (animation.frame_count == 1 && !ota_update_in_progress()) {
     		xTaskDelayUntil(&drawStartTick, pdMS_TO_TICKS(1000));
   	}
 
