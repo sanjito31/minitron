@@ -9,20 +9,24 @@ int WIFI_CONN           = 0;
 int init_wifi()
 {
 	Serial.println("Trying WiFi...");
-	WiFi.begin(SSID, PASS);
 	pinMode(LED_BUILTIN, OUTPUT);
+	digitalWrite(LED_BUILTIN, LOW);
+	WiFi.mode(WIFI_STA);
+	WiFi.setAutoReconnect(true);
+	WiFi.begin(SSID, PASS);
 	
-	int cycle = 0;
-	if(WiFi.status() != WL_CONNECTED) {
-		Serial.println(".");
-		delay(500);
-		if(cycle++ >= 50) { // 500ms * 50 = 25 seconds
-			Serial.println("WiFi connection timed out.");
+	const unsigned long connection_timeout_ms = 25000;
+	const unsigned long connection_started_ms = millis();
+	while (WiFi.status() != WL_CONNECTED) {
+		if (millis() - connection_started_ms >= connection_timeout_ms) {
+			Serial.println("\nWiFi connection timed out.");
 			return 1;
 		}
+		Serial.print(".");
+		delay(500);
 	}
 
   	digitalWrite(LED_BUILTIN, HIGH);
   	Serial.println("\nWi-Fi connected. IP = " + WiFi.localIP().toString());
-        return 0;
+    return 0;
 }
