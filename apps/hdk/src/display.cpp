@@ -17,6 +17,9 @@
 #define CLK_PIN  2
 
 // MatrixPanel_I2S_DMA display
+#define MATRIX_WIDTH	64
+#define MATRIX_HEIGHT	32
+
 MatrixPanel_I2S_DMA *dma_display    = nullptr;
 
 
