@@ -3,6 +3,7 @@
 #include "request.h"
 #include "graphics.h"
 #include "wifi_setup.h"
+#include "ota.h"
 #include "display.h"
 #include "assets.h"
 
@@ -24,6 +25,11 @@ void setup()
 	if (init_wifi()) {
 		Serial.println("WIFI ERROR");
 		return;
+	}
+
+	// Initialize OTA before graphics so display errors do not prevent recovery.
+	if (init_ota()) {
+		Serial.println("OTA is unavailable; continuing display startup.");
 	}
 
 	// Initialize Graphics and Display

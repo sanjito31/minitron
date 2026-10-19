@@ -52,7 +52,18 @@ Edit [include/secrets.h](include/secrets.h) with your credentials:
 #define WIFI_SSID "your-wifi-ssid"
 #define WIFI_PASS "your-wifi-password"
 #define SERVER_API_URL "http://your-api-server:port"
+#define OTA_PASSWORD "your-ota-password"
 ```
+
+Use a strong OTA password and keep `include/secrets.h` out of Git. The OTA
+handler initializes after WiFi connects, uses the hostname `minitron.local` and
+port 3232, and logs update progress and errors to serial. If `OTA_PASSWORD` is
+missing or empty, OTA stays disabled and display startup continues.
+
+The handler exposes `handle_ota()` for frequent servicing and
+`ota_update_in_progress()` so image downloads can pause during an update.
+The current main loop does not yet service the handler; that integration is
+the next step before network uploads can work.
 
 ### 3. Build and Upload
 
