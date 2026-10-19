@@ -62,8 +62,13 @@ missing or empty, OTA stays disabled and display startup continues.
 
 The handler exposes `handle_ota()` for frequent servicing and
 `ota_update_in_progress()` so image downloads can pause during an update.
-The current main loop does not yet service the handler; that integration is
-the next step before network uploads can work.
+The main loop services the handler every 10 ms when idle. Image polling runs
+in a separate FreeRTOS task, so a slow API request does not block OTA servicing.
+New image requests pause during OTA, and an active image body download checks
+for OTA cancellation between reads. HTTP connection and read timeouts are
+3 seconds; the image body loop also enforces a 15-second request deadline.
+Existing graphics rendering continues during an update; freezing the display
+is a separate integration step.
 
 ### 3. Build and Upload
 
@@ -88,12 +93,13 @@ GET /api/current
 
 1. **Startup**: ESP32 connects to WiFi and initializes the LED matrix display
 2. **Initial Display**: Shows a default "no apps" graphic from embedded assets
-3. **Main Loop**:
+3. **Image Polling Task**:
    - Requests new graphic from `SERVER_API_URL/api/current`
    - Downloads WebP data into memory
    - Decodes WebP and renders pixels to the LED matrix
    - Waits 10 seconds and repeats
-4. **Background Rendering**: A separate FreeRTOS task handles continuous display updates for animations
+4. **Main Loop**: Services OTA and yields for 10 ms between calls
+5. **Background Rendering**: A separate FreeRTOS task handles continuous display updates for animations
 
 ## Project Structure
 
