@@ -6,4 +6,5 @@
 .vscode/ipch
 
 secrets.h
+.env
 .DS_Store

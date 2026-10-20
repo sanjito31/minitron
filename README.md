@@ -81,22 +81,67 @@ and API base URL:
 #define SERVER_API_URL "http://192.168.1.100:8000"
 ```
 
+Create the Git-ignored `apps/hdk/.env` with the OTA password:
+
+```dotenv
+MINITRON_OTA_PASSWORD='your-ota-password'
+```
+
+`apps/hdk/upload.py` loads this file and passes the password to PlatformIO's
+compiler and upload flags. Do not also define it in `secrets.h`.
+
 Use an address reachable from the ESP32, such as your API computer's LAN address.
 The firmware appends `/api/current` to this URL. See the
 [HDK README](apps/hdk/README.md#hardware-requirements) for panel wiring.
 
 ### Build, upload, and monitor
 
+Install the upload script's dependency once:
+
+```bash
+python3 -m pip install -r apps/hdk/requirements.txt
+```
+
+Connect the ESP32 over USB and list the available devices:
+
+```bash
+pio device list
+```
+
+On macOS, the ESP32's device path will likely look like
+`/dev/cu.usbserial-0001` or `/dev/cu.SLAB_USBtoUART`. Use the exact path shown
+for your board. If you are unsure which device is yours, compare the list with
+the ESP32 unplugged and plugged in.
+
+Pass that path to `upload.py` with `--usb --port`, and use the same path for
+serial monitoring. Replace `/dev/cu.usbserial-0001` in these examples with your
+device's path, including `/dev/cu.SLAB_USBtoUART` if that is the one listed:
+
 ```bash
 # Build firmware.
-pio run -d apps/hdk
+python3 apps/hdk/upload.py --build-only
 
 # Build and flash a connected ESP32.
-pio run -d apps/hdk -t upload
+python3 apps/hdk/upload.py --usb --port /dev/cu.usbserial-0001
 
-# Read serial output using the HDK project's monitor settings.
-(cd apps/hdk && pio device monitor)
+# Read serial output from the same ESP32.
+pio device monitor --port /dev/cu.usbserial-0001 --baud 115200
 ```
+
+For WiFi uploads, first flash OTA-enabled firmware over USB and configure the
+password as described in the [HDK OTA instructions](apps/hdk/README.md#4-upload-over-wifi).
+Then use the convenience command, which builds and uploads using the password
+defined in `apps/hdk/.env`:
+
+```bash
+python3 apps/hdk/upload.py
+# Or use the device's IP address:
+python3 apps/hdk/upload.py --port 192.168.1.50
+```
+
+`192.168.1.50` is a generic example; replace it with the ESP32's IP address
+printed on serial after it connects to WiFi. No manual password export or
+`.env` loading is needed.
 
 `-d apps/hdk` selects the PlatformIO project directory. It is equivalent to
 changing into `apps/hdk` and running `pio run`, just as when the HDK was a
