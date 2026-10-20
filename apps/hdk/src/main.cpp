@@ -7,6 +7,7 @@
 #include "ota.h"
 #include "display.h"
 #include "assets.h"
+#include "device_id.h"
 
 
 // Serial BAUD Rate
@@ -33,6 +34,12 @@ void setup()
 	if (init_ota()) {
 		Serial.println("OTA is unavailable; continuing display startup.");
 	}
+
+	if (init_device_id()) {
+		Serial.println("Device ID unavailable; image polling stopped. OTA remains available.");
+		return;
+	}
+	Serial.printf("Device ID: %s\n", get_device_id());
 
 	// Initialize Graphics and Display
 	if (init_graphics(ASSET_NOAPPS_WEBP, ASSET_NOAPPS_WEBP_LEN)) {

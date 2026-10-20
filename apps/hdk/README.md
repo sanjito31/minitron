@@ -9,6 +9,7 @@ This project turns an ESP32 into a networked display system that periodically do
 ## Features
 
 - **WiFi Connectivity**: Connects to your network on startup
+- **Persistent Device ID**: Stores a UUID v4 in NVS and exposes it through a getter
 - **Periodic API Polling**: Fetches new graphics from a configurable endpoint every 10 seconds
 - **WebP Decoding**: Renders WebP images and animations using libwebp
 - **DMA Display**: Uses ESP32 HUB75 LED matrix panel with DMA for smooth, flicker-free rendering
@@ -155,6 +156,27 @@ Replace the example serial port with yours. Omitting `--port` with `--usb` uses
 automatic port selection. Use `upload.py` for builds and uploads so the password
 flags are set automatically.
 
+## Device identity
+
+After WiFi and OTA initialization, startup reads the `device_id` string in the
+`minitron` NVS namespace. A valid UUID v4 is reused without writing to flash.
+If the entry is missing or malformed, the ESP32 generates a random UUID v4
+and commits it to NVS before using it. Generation runs with WiFi active to
+provide entropy to the [ESP32 hardware random generator](https://docs.espressif.com/projects/esp-idf/en/v4.4/esp32/api-reference/system/random.html).
+
+The UUID is printed to serial at startup. Firmware code can include
+`device_id.h` and call `get_device_id()` to access it as a `const char *`.
+The getter returns `nullptr` until initialization succeeds.
+
+The ID survives power cycles and normal firmware uploads, including OTA, as
+long as the NVS partition is preserved. A full flash erase removes it. A future
+factory-reset flow can erase just the `device_id` key from the `minitron`
+namespace and reboot to generate a new identity; no reset command is added here.
+
+NVS read or write failures stop image polling and are logged to serial. OTA
+remains available for recovery. The getter never exposes an ID that could not
+be successfully saved.
+
 ## API Endpoint
 
 The ESP32 expects a server running at the configured `SERVER_API_URL` with the following endpoint:
@@ -169,7 +191,7 @@ GET /api/current
 
 ## How It Works
 
-1. **Startup**: ESP32 connects to WiFi and initializes the LED matrix display
+1. **Startup**: ESP32 connects to WiFi, starts OTA, loads or creates its device UUID, and initializes the LED matrix display
 2. **Initial Display**: Shows a default "no apps" graphic from embedded assets
 3. **Image Polling Task**:
    - Requests new graphic from `SERVER_API_URL/api/current`
@@ -182,6 +204,7 @@ GET /api/current
 ## Project Structure
 
 - [src/main.cpp](src/main.cpp) - Main program loop and initialization
+- [src/device_id.cpp](src/device_id.cpp) - Persistent UUID generation and NVS storage
 - [src/display.cpp](src/display.cpp) - HUB75 LED matrix display driver
 - [src/graphics.cpp](src/graphics.cpp) - WebP decoding and rendering logic
 - [src/request.cpp](src/request.cpp) - HTTP client for fetching graphics
