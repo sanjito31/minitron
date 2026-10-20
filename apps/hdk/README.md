@@ -11,6 +11,7 @@ This project turns an ESP32 into a networked display system that periodically do
 - **WiFi Connectivity**: Connects to your network on startup
 - **Persistent Device ID**: Stores a UUID v4 in NVS and exposes it through a getter
 - **Periodic API Polling**: Fetches new graphics from a configurable endpoint every 10 seconds
+- **Idempotent Requests**: Reuses a request UUID across retries until a valid WebP downloads
 - **WebP Decoding**: Renders WebP images and animations using libwebp
 - **DMA Display**: Uses ESP32 HUB75 LED matrix panel with DMA for smooth, flicker-free rendering
 - **Dual-core Processing**: Graphics rendering runs on a separate FreeRTOS task for optimal performance
@@ -181,21 +182,38 @@ be successfully saved.
 
 The ESP32 expects a server running at the configured `SERVER_API_URL` with the following endpoint:
 
-```
-GET /api/current
+```http
+POST /api/devices/{device_id}/next
+Content-Type: application/json
+Accept: image/webp
+
+{"request_id":"550e8400-e29b-41d4-a716-446655440000"}
 ```
 
-**Response**: Raw WebP image data (binary)
+`device_id` is the UUID loaded from NVS. `request_id` is a separate UUID v4
+generated when starting a new graphic request. The handler keeps one pending
+request ID in RAM, including across failed polling cycles.
 
-**Example**: Your server should return a WebP file when this endpoint is accessed. The ESP32 will poll this endpoint every 10 seconds.
+Each polling cycle makes up to three attempts, pausing 500 ms between attempts.
+HTTP errors, timeouts, incomplete downloads, and invalid WebP data all retain the
+same ID. WiFi loss or OTA pauses further attempts without discarding that ID.
+After failure, the polling task waits its normal 10 seconds and tries again
+with the same ID. The request ID is cleared only after an HTTP 200 response
+downloads completely and every WebP frame decodes successfully. The next cycle
+then generates a new ID. Rebooting discards any pending request ID.
+
+**Response**: HTTP 200 with raw WebP image data (binary) and a positive
+`Content-Length`. Both static and animated WebP are accepted. The server must
+honor repeated `request_id` values for the same device by returning the same
+graphic rather than advancing again.
 
 ## How It Works
 
 1. **Startup**: ESP32 connects to WiFi, starts OTA, loads or creates its device UUID, and initializes the LED matrix display
 2. **Initial Display**: Shows a default "no apps" graphic from embedded assets
 3. **Image Polling Task**:
-   - Requests new graphic from `SERVER_API_URL/api/current`
-   - Downloads WebP data into memory
+   - Posts a request UUID to `SERVER_API_URL/api/devices/{device_id}/next`
+   - Retries the same request UUID if necessary and validates downloaded WebP frames
    - Decodes WebP and renders pixels to the LED matrix
    - Waits 10 seconds and repeats
 4. **Main Loop**: Services OTA and yields for 10 ms between calls
@@ -221,6 +239,19 @@ Key settings can be modified in [src/main.cpp](src/main.cpp):
 - `BAUD` (default: 115200) - Serial monitor baud rate
 
 Display dimensions are configured in [src/display.cpp](src/display.cpp) via `MATRIX_WIDTH`, `MATRIX_HEIGHT`, and `CHAIN_LENGTH`.
+
+## Host tests
+
+Run the HDK tests without connecting or flashing a board:
+
+```bash
+python3 -m unittest discover -s apps/hdk/test -p 'test_*.py'
+```
+
+The tests require a C++ compiler. Request tests also require `pkg-config` and
+host libwebp development libraries (`libwebpdemux`); those tests are skipped if
+the libraries are unavailable. HTTP and WiFi are simulated, while WebP payloads
+are validated with the real host decoder, including corrupted animation frames.
 
 ## License
 

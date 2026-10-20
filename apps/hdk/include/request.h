@@ -1,15 +1,8 @@
 #pragma once
-#include <ArduinoJson.h>
 
+#include <Arduino.h>
 
-// struct JsonResponse {
-//         JsonDocument doc;
-//         int httpCode;
-//         DeserializationError jsonErr;
-//         bool ok;
-// };
-
-
-// JsonResponse requestJSON(const String& URL);
-
-int requestGraphic(const String& URL, uint8_t **buf, size_t *len);
+// Call only from the image polling task. Retries share an in-memory UUID across
+// calls until a complete, decodable WebP is downloaded. Returns 0 on success.
+// The caller owns *buf on success and must free it; failure leaves nullptr/0.
+int requestGraphic(const String &URL, uint8_t **buf, size_t *len);
