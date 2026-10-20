@@ -204,7 +204,8 @@ GET /api/current
 ## Project Structure
 
 - [src/main.cpp](src/main.cpp) - Main program loop and initialization
-- [src/device_id.cpp](src/device_id.cpp) - Persistent UUID generation and NVS storage
+- [src/device_id.cpp](src/device_id.cpp) - Device identity initialization and NVS storage
+- [src/uuid.cpp](src/uuid.cpp) - Reusable UUID v4 generation and validation
 - [src/display.cpp](src/display.cpp) - HUB75 LED matrix display driver
 - [src/graphics.cpp](src/graphics.cpp) - WebP decoding and rendering logic
 - [src/request.cpp](src/request.cpp) - HTTP client for fetching graphics

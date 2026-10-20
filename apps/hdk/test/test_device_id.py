@@ -122,7 +122,8 @@ class DeviceIdTests(unittest.TestCase):
         subprocess.run([
             os.environ.get("CXX", "c++"), "-std=c++11", "-Wall", "-Wextra", "-Werror",
             "-I" + str(directory), "-I" + str(PROJECT / "include"),
-            str(PROJECT / "src/device_id.cpp"), str(harness), "-o", str(cls.binary),
+            str(PROJECT / "src/device_id.cpp"), str(PROJECT / "src/uuid.cpp"),
+            str(harness), "-o", str(cls.binary),
         ], check=True)
 
     def boot(self, scenario="normal", stored=None):
