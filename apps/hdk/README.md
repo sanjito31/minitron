@@ -52,13 +52,20 @@ Edit [include/secrets.h](include/secrets.h) with your credentials:
 #define WIFI_SSID "your-wifi-ssid"
 #define WIFI_PASS "your-wifi-password"
 #define SERVER_API_URL "http://your-api-server:port"
-#define OTA_PASSWORD "your-ota-password"
 ```
 
-Use a strong OTA password and keep `include/secrets.h` out of Git. The OTA
-handler initializes after WiFi connects, uses the hostname `minitron.local` and
-port 3232, and logs update progress and errors to serial. If `OTA_PASSWORD` is
-missing or empty, OTA stays disabled and display startup continues.
+Create `apps/hdk/.env` using [.env.example](.env.example) as a reference:
+
+```dotenv
+MINITRON_OTA_PASSWORD='your-ota-password'
+```
+
+Keep `.env` and `include/secrets.h` out of Git. `upload.py` reads the password
+and passes it to PlatformIO through the `build_flags` and `upload_flags` in
+`platformio.ini`. Do not define `OTA_PASSWORD` in `secrets.h`.
+
+The OTA handler initializes after WiFi connects, uses the hostname
+`minitron.local` and port 3232, and logs update progress and errors to serial.
 
 The handler exposes `handle_ota()` for frequent servicing and
 `ota_update_in_progress()` so image downloads can pause during an update.
@@ -75,10 +82,78 @@ updates reboot into the new firmware.
 
 ### 3. Build and Upload
 
+Run the following commands from the monorepo root. Install the upload script's
+dependency once:
+
 ```bash
-pio run --target upload
-pio device monitor
+python3 -m pip install -r apps/hdk/requirements.txt
 ```
+
+Connect the ESP32 over USB and list the available devices:
+
+```bash
+pio device list
+```
+
+On macOS, the ESP32's device path will likely look like
+`/dev/cu.usbserial-0001` or `/dev/cu.SLAB_USBtoUART`. Use the exact path listed
+for your board. If you are unsure which entry is yours, compare the list with
+the ESP32 unplugged and plugged in.
+
+Pass the selected path to `upload.py` using `--usb --port`. Replace
+`/dev/cu.usbserial-0001` below with your device's path, including
+`/dev/cu.SLAB_USBtoUART` if that is the one listed:
+
+```bash
+# Build without uploading.
+python3 apps/hdk/upload.py --build-only
+
+# Build and upload to the selected ESP32 over USB.
+python3 apps/hdk/upload.py --usb --port /dev/cu.usbserial-0001
+
+# Monitor serial output from the same device.
+pio device monitor --port /dev/cu.usbserial-0001 --baud 115200
+```
+
+### 4. Upload over WiFi
+
+`MINITRON_OTA_PASSWORD` in the Git-ignored `apps/hdk/.env` is the single source
+of truth for both firmware and upload authentication. The Python script loads
+the file using `python-dotenv`; no manual export or `source` command is needed.
+Use a single-line assignment, with quotes around passwords containing spaces
+or `#`. Shell variables and commands are not expanded.
+
+From the monorepo root, build and upload over WiFi with:
+
+```bash
+python3 apps/hdk/upload.py
+```
+
+This targets `minitron.local`. To use an IP address instead:
+
+```bash
+python3 apps/hdk/upload.py --port 192.168.1.50
+```
+
+Replace the generic example IP address with the ESP32's address printed on serial.
+
+The script runs the normal PlatformIO build-and-upload command. PlatformIO
+injects `OTA_PASSWORD` into the compiler and uses the same password for upload
+authentication. It only uploads if the build succeeds. The ESP32 pauses image
+downloads and rendering during transfer and reboots on success.
+
+The first upload of OTA-enabled firmware must use USB. USB is also the way to
+apply a changed OTA password: until new firmware is installed, the device still
+expects the old password. For USB uploads and builds without uploading:
+
+```bash
+python3 apps/hdk/upload.py --usb --port /dev/cu.usbserial-0001
+python3 apps/hdk/upload.py --build-only
+```
+
+Replace the example serial port with yours. Omitting `--port` with `--usb` uses
+automatic port selection. Use `upload.py` for builds and uploads so the password
+flags are set automatically.
 
 ## API Endpoint
 

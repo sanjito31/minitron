@@ -1,6 +1,5 @@
 #pragma once
 
-#define OTA_PASSWORD    "penis"
 #define HOSTNAME        "minitron"
 #define PORT            3232
 

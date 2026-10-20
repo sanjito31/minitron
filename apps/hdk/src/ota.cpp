@@ -4,7 +4,6 @@
 #include <atomic>
 
 #include "ota.h"
-#include "secrets.h"
 
 namespace {
 bool ota_started = false;
@@ -19,7 +18,7 @@ int init_ota()
     }
 
 #ifndef OTA_PASSWORD
-    Serial.println("OTA disabled: define OTA_PASSWORD in include/secrets.h.");
+    Serial.println("OTA disabled: the build did not supply OTA_PASSWORD.");
     return 1;
 #else
     const char *password = OTA_PASSWORD;
