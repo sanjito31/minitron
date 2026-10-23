@@ -1,8 +1,16 @@
+name: minitron
+
 services:
-  web:
+  api:
     build: .
-    container_name: tidbyt-clone-api
+    image: minitron-api:latest
+    container_name: minitron-api
     ports:
       - "8000:8000"
     volumes:
       - .:/app
+    restart: unless-stopped
+    networks: [public-serve]
+
+networks:
+  public-serve:

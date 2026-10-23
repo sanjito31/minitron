@@ -1,0 +1,13 @@
+{
+  "apps": {
+    "app_7bbefa52ec4145bfb0526be7bce8430f.py": "7bbefa52-ec41-45bf-b052-6be7bce8430f",
+    "app_895e394c1ade4e4abf48dbe710ea325c.py": "895e394c-1ade-4e4a-bf48-dbe710ea325c",
+    "app_bd31308600994194b53d6104888fe022.py": "bd313086-0099-4194-b53d-6104888fe022",
+    "app_da0036fb23304e14a268efa68ae00cd6.py": "da0036fb-2330-4e14-a268-efa68ae00cd6"
+  },
+  "default_playlist": [
+    "895e394c-1ade-4e4a-bf48-dbe710ea325c",
+    "da0036fb-2330-4e14-a268-efa68ae00cd6"
+  ],
+  "version": 1
+}
