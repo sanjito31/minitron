@@ -38,13 +38,13 @@ minitron-led-panel-api/
 ├── main.py              # FastAPI application entry point
 ├── config.py            # Environment configuration using Pydantic
 ├── apps/                # Individual display apps
-│   ├── clock.py         # Clock display
-│   ├── weather_display.py       # Weather display
-│   ├── mta.py           # NYC Subway times
-│   └── flights_overhead.py  # Flight tracking
+│   ├── app_<uuid>.py    # Managed graphic modules; one permanent UUID per app
+│   └── .app_catalog.json # Filename/UUID mapping and default playlist UUIDs
 ├── models/
 │   ├── App.py           # Base app model
-│   └── Carousel.py      # App rotation logic
+│   ├── Loader.py        # App ingestion, UUID filenames, and registration
+│   ├── Registry.py      # Active app implementations and metadata
+│   └── Playlist.py      # Per-device rotation and graphic caches
 ├── utils/
 │   ├── draw.py          # Drawing utilities
 │   └── TimeKeeper.py    # Timing utilities
@@ -148,11 +148,26 @@ Changing the system Python does not change an existing virtual environment.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/current` | GET | Returns the current carousel frame as a WebP image |
-| `/api/test` | GET | Returns the weather app frame for testing |
+| `/api/current` | POST | Returns a device's selected playlist graphic as a WebP image |
 | `/api/logs` | POST | Accepts log entries from the hardware device |
 
-The `/api/current` endpoint automatically rotates through enabled apps based on their configured TTL (time-to-live) values.
+Send a device UUID and a request UUID. Unknown devices get an in-memory playlist
+containing clock, then weather. Retry the same request UUID until a frame succeeds;
+use a new request UUID to advance. TTL controls cache freshness, independently of
+playlist rotation.
+
+```bash
+curl -X POST http://localhost:8000/api/current \
+  -H 'Content-Type: application/json' \
+  -d '{"device_id":"8a9f734c-0b22-4eaf-9dbb-97d56d3e8120","request_id":"8a9f734c-0b22-4eaf-9dbb-97d56d3e8121"}' \
+  --output frame.webp
+```
+
+Weather needs `OPEN_WEATHER_API_KEY`, `LAT`, and `LON` in the environment or the
+API directory's `.env`. The server and clock run without them; a weather request
+with missing settings or an unavailable provider returns 503 and can be retried.
+MTA and flights are loaded but are not in the default playlist. See the
+[app guide](APP_CONTRACT.md) for provider settings and playlist overrides.
 
 ## Tech Stack
 

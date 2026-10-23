@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from apps.api.apps import clock_contract
+from apps.api.apps import app_895e394c1ade4e4abf48dbe710ea325c as clock_contract
 from apps.api.models.Device import Device
 from apps.api.models.Playlist import Playlist, PlaylistApp
 from apps.api.models.Registry import app_registry

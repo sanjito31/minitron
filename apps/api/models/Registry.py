@@ -1,4 +1,4 @@
-from collections.abc import Callable, Iterator, MutableMapping
+from collections.abc import Callable, Iterable, Iterator, MutableMapping
 from dataclasses import dataclass
 from functools import partial
 from inspect import signature
@@ -31,6 +31,7 @@ class AppRegistry(MutableMapping[str, App]):
 
     def __init__(self):
         self._registrations: dict[str, AppRegistration] = {}
+        self._default_playlist_ids: tuple[str, ...] = ()
         self._lock = Lock()
 
     def __getitem__(self, app_id: str) -> App:
@@ -59,6 +60,19 @@ class AppRegistry(MutableMapping[str, App]):
     def clear(self) -> None:
         with self._lock:
             self._registrations.clear()
+            self._default_playlist_ids = ()
+
+    def set_default_playlist(self, app_ids: Iterable[str]) -> None:
+        """Keep catalog-selected defaults independent of source filenames/names."""
+        with self._lock:
+            self._default_playlist_ids = tuple(app_ids)
+
+    def get_default_playlist(self) -> tuple[AppRegistration, ...]:
+        with self._lock:
+            return tuple(
+                self._registrations[app_id] for app_id in self._default_playlist_ids
+                if app_id in self._registrations
+            )
 
     def register(
         self,

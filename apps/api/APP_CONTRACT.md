@@ -39,8 +39,53 @@ Rendering cannot extend the lifetime of the input data.
 accepts a `services` keyword, the registry binds the object supplied to
 `AppLoader(..., services=services)`. Services are separate from device settings.
 
-See [clock_contract.py](apps/clock_contract.py) for a real clock example with an
+See [the Clock app](apps/app_895e394c1ade4e4abf48dbe710ea325c.py) for a real example with an
 animated WebP and expiration at the next minute boundary.
+
+## Built-in apps and device defaults
+
+The server loads these managed app files. The UUID in each filename matches its
+catalog and registration UUID (filenames omit UUID hyphens).
+
+| App | Source |
+| --- | --- |
+| Clock | [app_895e394c1ade4e4abf48dbe710ea325c.py](apps/app_895e394c1ade4e4abf48dbe710ea325c.py) |
+| Weather | [app_da0036fb23304e14a268efa68ae00cd6.py](apps/app_da0036fb23304e14a268efa68ae00cd6.py) |
+| MTA | [app_bd31308600994194b53d6104888fe022.py](apps/app_bd31308600994194b53d6104888fe022.py) |
+| Flights Overhead | [app_7bbefa52ec4145bfb0526be7bce8430f.py](apps/app_7bbefa52ec4145bfb0526be7bce8430f.py) |
+
+An unknown device UUID automatically creates an in-memory device with its own
+clock/weather playlist, in that order. MTA and flights are registered but are not
+added to default playlists. Each device's playlist entries, overrides, and caches
+are independent. Devices and playlists are not persisted.
+
+Weather reads `OPEN_WEATHER_API_KEY`, `LAT`, and `LON` from environment variables
+or the API directory's `.env` at update time. Entry settings `lat` and `lon`
+override that location; `units` accepts `imperial`, `metric`, or `standard`.
+No weather credentials are required to start the server or render the clock.
+If weather settings are missing or the provider request fails, the endpoint
+returns 503 with `Retry-After: 1`; retry the same request ID to stay on weather.
+
+MTA exposes `api_url`, `stations`, `lines`, `sections`, `min_wait`, and `max_wait`
+as settings. It retains arrival timestamps and computes countdowns while
+rendering, shortening graphic expiration when a displayed countdown changes.
+Defaults retain the original B/D and F display and stations.
+
+Flights reads `LAT`, `LON`, `LATMIN`, `LATMAX`, `LOMIN`, and `LOMAX`, with matching
+lowercase entry overrides. Without explicit bounds it queries within 0.2 degrees
+of the configured location. `OPENSKY_ACCESS_TOKEN` is optional; without one it
+uses anonymous access. Route lookups are limited by `max_route_lookups`. An empty
+area renders a "No flights" graphic; unavailable route metadata retains the
+nearest aircraft's callsign. Upstream request failures return no graphic.
+
+All three provider apps support `ttl`, `timeout`, `width`, `height`, `fontsize`,
+`bg`, and `fg`. They use `services.http` if supplied (a requests-compatible HTTP
+client); otherwise they use `requests`. Loading an app does not contact providers.
+
+Provider references: [OpenWeather current weather](https://openweathermap.org/current),
+[MTA developer resources](https://api.mta.info/),
+[OpenSky REST API](https://github.com/openskynetwork/opensky-api/blob/master/docs/free/rest.rst),
+and [ADSBDB](https://www.adsbdb.com/).
 
 ## Configuration overrides
 
@@ -70,11 +115,22 @@ registrations = loader.load_catalog()
 # loader.errors maps failed source paths to their exceptions.
 ```
 
-The first successful load assigns a UUID4 and saves the filename-to-ID mapping in
-`apps/.app_catalog.json` before publishing the app. Keep this catalog with the app
-files across restarts and deployments. App names and source contents can change
-without changing IDs. Renaming a file requires updating its catalog key to retain
-the same ID; an unknown filename is treated as a new app.
+Add a new app using a descriptive filename such as `my_clock_contract.py`. The
+loader assigns a UUID4 and moves it to `app_<uuid hex>.py`. An existing catalog
+UUID is preserved when migrating an older descriptive filename. Keep the managed
+filename when editing the app; display names, authors, defaults, and code can
+change without changing its UUID.
+
+The loader validates the module at its final path and saves the matching
+filename-to-ID mapping in `apps/.app_catalog.json` before publishing the app.
+Validation or catalog-write failures restore the original filename. Existing
+destination files are never overwritten. A managed filename can recover its UUID
+even if the catalog entry is missing; a conflicting catalog UUID is rejected.
+
+The catalog's `default_playlist` array contains ordered app UUIDs. It selects
+clock and weather without depending on source filenames or display names. The
+original catalog format is migrated automatically, including its clock/weather
+defaults. Keep the catalog with the app files across restarts and deployments.
 
 Calling `load_catalog()` again reloads edited files into fresh module namespaces,
 keeps unchanged registrations, and unregisters removed files. Deleted filenames

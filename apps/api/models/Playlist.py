@@ -6,7 +6,7 @@ from uuid import uuid4
 from weakref import ReferenceType, ref
 
 from .App import App
-from .Registry import app_registry
+from .Registry import AppRegistry, app_registry
 
 
 @dataclass
@@ -91,9 +91,22 @@ class Playlist:
     current_app_idx: int
     apps: list[PlaylistApp]
 
-    def __init__(self, apps: Iterable[PlaylistApp] = ()):
+    def __init__(
+        self, apps: Iterable[PlaylistApp] = (), *, registry: AppRegistry | None = None,
+    ):
         self.apps = list(apps)
         self.current_app_idx = 0
+        self._registry = registry if registry is not None else app_registry
+
+    @classmethod
+    def default(cls, *, registry: AppRegistry | None = None) -> "Playlist":
+        """Give a device its own clock/weather entries using the loaded UUIDs."""
+        registry = registry if registry is not None else app_registry
+        entries = [
+            PlaylistApp(record.app.id, name=record.name)
+            for record in registry.get_default_playlist()
+        ]
+        return cls(entries, registry=registry)
 
     @property
     def num_apps(self) -> int:
@@ -122,7 +135,7 @@ class Playlist:
             entry = self.current_app
             if entry is None:
                 return None
-            app = app_registry.get(entry.app_id)
+            app = self._registry.get(entry.app_id)
             if app is not None:
                 return entry.get_graphic(app)
             self.advance_app()

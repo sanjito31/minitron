@@ -12,10 +12,12 @@ from uuid import UUID
 if __package__:
     from .models.Device import DeviceManager
     from .models.Loader import AppLoader
+    from .models.Playlist import Playlist
     from .models.Registry import app_registry
 else:
     from models.Device import DeviceManager
     from models.Loader import AppLoader
+    from models.Playlist import Playlist
     from models.Registry import app_registry
 
 
@@ -36,8 +38,11 @@ def create_server(
     services=None
 ):
     registry = registry if registry is not None else app_registry
-    manager = DeviceManager()
-    loader = AppLoader(registry, services=services)
+    manager = DeviceManager(playlist_factory=lambda: Playlist.default(registry=registry))
+    loader = AppLoader(
+        registry, services=services,
+        exclude_files=("clock.py", "weather.py", "mta.py", "flights_overhead.py"),
+    )
 
     @asynccontextmanager
     async def lifespan(app):
@@ -60,18 +65,11 @@ def create_server(
 
     @app.post("/api/current")
     def current(request: FrameRequest):
-        # Sync endpoint: SQLAlchemy, upstream calls, and rendering run in the
-        # framework's thread pool rather than blocking the async event loop.
-        try:
-            graphic = manager.handle_frame_request(
-                str(request.device_id), 
-                str(request.request_id)
-            )
-        except DeviceNotFound:
-            raise HTTPException(
-                status_code=404, 
-                detail="Device is not registered."
-            )
+        # Unknown IDs create an in-memory device with the default playlist.
+        # Provider calls and rendering run in the framework's thread pool.
+        graphic = manager.handle_frame_request(
+            str(request.device_id), str(request.request_id)
+        )
         
         if graphic is None:
             raise HTTPException(

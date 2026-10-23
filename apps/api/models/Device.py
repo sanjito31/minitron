@@ -23,7 +23,7 @@ class Device:
         self.owner_id = (
             _validate_uuid(owner_id, "owner_id") if owner_id is not None else None
         )
-        self.playlist = playlist if playlist is not None else Playlist()
+        self.playlist = playlist if playlist is not None else Playlist.default()
         
         self._created_at = datetime.now(timezone.utc)
 
@@ -68,7 +68,7 @@ class DeviceManager:
 
     def __init__(
         self,
-        playlist_factory: Callable[[], Playlist] = Playlist,
+        playlist_factory: Callable[[], Playlist] = Playlist.default,
     ):
         self._playlist_factory = playlist_factory
         self._devices: dict[str, Device] = {}
