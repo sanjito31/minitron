@@ -1,12 +1,13 @@
-from collections.abc import Iterator, MutableMapping
+from collections.abc import Callable, Iterator, MutableMapping
 from dataclasses import dataclass
 from functools import partial
 from inspect import signature
 from threading import Lock
 from types import ModuleType
+from typing import cast
 from uuid import uuid4
 
-from .App import App
+from .App import App, Renderer, UpdateResult
 
 
 @dataclass(frozen=True)
@@ -109,30 +110,49 @@ class AppRegistry(MutableMapping[str, App]):
         the module's display name. Failed validation leaves the current App alone.
         """
         name = getattr(module, "NAME", None)
-        author = getattr(module, "AUTHOR", None)
+        author = getattr(module, "AUTHOR", "")
         if not isinstance(name, str) or not name.strip():
             raise ValueError("An app module must define a nonempty NAME.")
         if not isinstance(author, str):
             raise ValueError("An app module must define AUTHOR as a string.")
 
+        config = getattr(module, "DEFAULT_CONFIG", None)
+        if not isinstance(config, dict):
+            raise TypeError("App.config must be a dictionary.")
         updater = getattr(module, "update", None)
+        if not callable(updater):
+            raise TypeError("App.update must be a synchronous callable.")
         renderer = getattr(module, "render", None)
-        # App validates defaults and synchronous callables before publication.
+        if not callable(renderer):
+            raise TypeError("App.render must be a synchronous callable.")
+        # Dynamic modules supply these return types through the app contract;
+        # call signatures are checked below without executing either function.
+        updater = cast(Callable[..., UpdateResult | None], updater)
+        renderer = cast(Renderer, renderer)
+        # App also rejects asynchronous callables before publication.
         candidate = App(
             app_id,
-            getattr(module, "DEFAULT_CONFIG", None),
+            config,
             updater,
             renderer,
         )
         try:
-            signature(updater).bind({}, services=services)
             signature(renderer).bind({}, {})
+            update_signature = signature(updater)
+            try:
+                update_signature.bind({}, services=services)
+            except TypeError:
+                update_signature.bind({})
+                bound_updater = updater
+            else:
+                bound_updater = partial(updater, services=services)
         except (TypeError, ValueError) as exc:
             raise TypeError(
-                "App modules must provide update(config, *, services) and "
+                "App modules must provide update(config) (optionally accepting "
+                "services as a keyword) and "
                 "render(data, config)."
             ) from exc
-        candidate.update_fn = partial(updater, services=services)
+        candidate.update_fn = bound_updater
         return self.register(
             candidate, name=name, author=author,
             revision=revision, source=source,

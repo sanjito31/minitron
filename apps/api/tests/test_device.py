@@ -4,7 +4,7 @@ from datetime import timezone
 from threading import Barrier, Event
 from uuid import uuid4
 
-from apps.api.models.Device import DeviceManager, DeviceRegistry
+from apps.api.models.Device import Device, DeviceManager
 from apps.api.models.Playlist import Playlist
 
 
@@ -33,43 +33,41 @@ class StubPlaylist(Playlist):
         self.current_app_idx = (self.current_app_idx + 1) % len(self.graphics)
 
 
-class DeviceManagerTests(unittest.TestCase):
+class DeviceTests(unittest.TestCase):
     def setUp(self):
         self.device_id = str(uuid4())
         self.request_id = str(uuid4())
         self.playlist = StubPlaylist()
-        self.device = DeviceManager(
-            self.device_id, self.request_id, playlist=self.playlist
-        )
+        self.device = Device(self.device_id, playlist=self.playlist)
 
     def test_validates_all_constructor_identifiers(self):
         valid = dict(
             device_id=self.device_id,
-            request_id=self.request_id,
             owner_id=str(uuid4()),
         )
         for field in valid:
             for invalid in ("not-a-uuid", "", 42):
                 with self.subTest(field=field, value=invalid):
                     with self.assertRaisesRegex(ValueError, field):
-                        DeviceManager(**(valid | {field: invalid}))
+                        Device(**(valid | {field: invalid}))
 
     def test_normalizes_ids_and_uses_aware_utc_timestamps(self):
         owner = uuid4()
-        device = DeviceManager(
+        device = Device(
             self.device_id.replace("-", "").upper(),
-            self.request_id.replace("-", ""),
             owner.hex,
             playlist=self.playlist,
         )
         self.assertEqual(device.device_id, self.device_id)
         self.assertEqual(device.owner_id, str(owner))
-        self.assertEqual(device.last_request_id, self.request_id)
-        self.assertEqual(device.created_at.tzinfo, timezone.utc)
-        self.assertEqual(device.last_request_at.tzinfo, timezone.utc)
+        self.assertIsNone(device.last_request_id)
+        self.assertIsNone(device.last_request_at)
+        self.assertEqual(device._created_at.tzinfo, timezone.utc)
         self.assertEqual(
             device.handle_request(self.device_id, self.request_id), b"first"
         )
+        self.assertEqual(device.last_request_id, self.request_id)
+        self.assertEqual(device.last_request_at.tzinfo, timezone.utc)
 
     def test_initial_request_stays_on_first_entry_until_new_id(self):
         self.assertEqual(
@@ -84,7 +82,7 @@ class DeviceManagerTests(unittest.TestCase):
         self.assertEqual(self.device.last_request_id, next_request)
         self.assertEqual(self.playlist.current_app_idx, 1)
         self.assertEqual(self.playlist.advance_count, 1)
-        self.assertGreaterEqual(self.device.last_request_at, self.device.created_at)
+        self.assertGreaterEqual(self.device.last_request_at, self.device._created_at)
 
     def test_retry_current_request_stays_on_selected_entry(self):
         self.device.handle_request(self.device_id, self.request_id)
@@ -99,7 +97,7 @@ class DeviceManagerTests(unittest.TestCase):
         self.assertEqual(self.playlist.current_app_idx, 1)
         self.assertEqual(self.playlist.advance_count, 1)
 
-    def test_first_handled_id_can_differ_from_registration_request(self):
+    def test_first_handled_id_starts_on_first_entry(self):
         self.assertEqual(
             self.device.handle_request(self.device_id, str(uuid4())), b"first"
         )
@@ -118,8 +116,9 @@ class DeviceManagerTests(unittest.TestCase):
         self.assertEqual(self.playlist.advance_count, 0)
 
     def test_empty_playlist_is_safe_and_not_remembered_as_success(self):
-        device = DeviceManager(self.device_id, self.request_id)
+        device = Device(self.device_id)
         self.assertIsNone(device.handle_request(self.device_id, self.request_id))
+        self.assertIsNone(device.last_request_id)
         device.playlist = self.playlist
         self.assertEqual(
             device.handle_request(self.device_id, self.request_id), b"first"
@@ -133,6 +132,7 @@ class DeviceManagerTests(unittest.TestCase):
             self.device.handle_request(self.device_id, next_request)
         self.assertEqual(self.playlist.current_app_idx, 1)
         self.assertEqual(self.playlist.advance_count, 1)
+        self.assertEqual(self.device.last_request_id, self.request_id)
         self.assertEqual(
             self.device.handle_request(self.device_id, next_request), b"second"
         )
@@ -143,6 +143,7 @@ class DeviceManagerTests(unittest.TestCase):
         next_request = str(uuid4())
         self.playlist.graphics[1] = None
         self.assertIsNone(self.device.handle_request(self.device_id, next_request))
+        self.assertEqual(self.device.last_request_id, self.request_id)
         self.assertEqual(self.playlist.advance_count, 1)
         self.playlist.graphics[1] = b"recovered"
         self.assertEqual(
@@ -192,9 +193,7 @@ class DeviceManagerTests(unittest.TestCase):
                     raise TimeoutError("Test did not release the render")
                 return super().get_graphic()
 
-        slow = DeviceManager(
-            str(uuid4()), str(uuid4()), playlist=BlockingPlaylist()
-        )
+        slow = Device(str(uuid4()), playlist=BlockingPlaylist())
         with ThreadPoolExecutor(max_workers=2) as executor:
             slow_result = executor.submit(
                 slow.handle_request, slow.device_id, str(uuid4())
@@ -210,24 +209,24 @@ class DeviceManagerTests(unittest.TestCase):
             self.assertEqual(slow_result.result(timeout=5), b"first")
 
 
-class DeviceRegistryTests(unittest.TestCase):
+class DeviceManagerTests(unittest.TestCase):
     def test_lookup_reuses_device_and_does_not_reset_playlist(self):
-        registry = DeviceRegistry(StubPlaylist)
+        registry = DeviceManager(StubPlaylist)
         device_id = uuid4()
         self.assertIsNone(registry.get(str(device_id)))
-        device = registry.get_or_create(device_id.hex, str(uuid4()))
+        device = registry.get_or_create(device_id.hex)
         device.handle_request(str(device_id), str(uuid4()))
         device.handle_request(str(device_id), str(uuid4()))
         self.assertIs(registry.get(str(device_id)), device)
         self.assertIs(
-            registry.get_or_create(str(device_id), str(uuid4())), device
+            registry.get_or_create(str(device_id)), device
         )
         self.assertEqual(device.playlist.current_app_idx, 1)
 
     def test_new_devices_have_independent_default_playlists(self):
-        registry = DeviceRegistry()
-        first = registry.get_or_create(str(uuid4()), str(uuid4()))
-        second = registry.get_or_create(str(uuid4()), str(uuid4()))
+        registry = DeviceManager()
+        first = registry.get_or_create(str(uuid4()))
+        second = registry.get_or_create(str(uuid4()))
         self.assertIsNot(first.playlist, second.playlist)
         self.assertIsNot(first.playlist.apps, second.playlist.apps)
 
@@ -239,13 +238,13 @@ class DeviceRegistryTests(unittest.TestCase):
             playlists.append(playlist)
             return playlist
 
-        registry = DeviceRegistry(factory)
+        registry = DeviceManager(factory)
         device_id = str(uuid4())
         barrier = Barrier(8)
 
         def create(_):
             barrier.wait(timeout=5)
-            return registry.get_or_create(device_id, str(uuid4()))
+            return registry.get_or_create(device_id)
 
         with ThreadPoolExecutor(max_workers=8) as executor:
             devices = list(executor.map(create, range(8)))
@@ -253,11 +252,11 @@ class DeviceRegistryTests(unittest.TestCase):
         self.assertEqual(len(playlists), 1)
 
     def test_existing_ownership_is_not_overwritten(self):
-        registry = DeviceRegistry()
+        registry = DeviceManager()
         owner_id = str(uuid4())
-        device = registry.get_or_create(str(uuid4()), str(uuid4()), owner_id)
+        device = registry.get_or_create(str(uuid4()), owner_id)
         with self.assertRaisesRegex(ValueError, "owner_id"):
-            registry.get_or_create(device.device_id, str(uuid4()), str(uuid4()))
+            registry.get_or_create(device.device_id, str(uuid4()))
         self.assertEqual(device.owner_id, owner_id)
 
     def test_invalid_registration_does_not_create_a_playlist(self):
@@ -267,11 +266,10 @@ class DeviceRegistryTests(unittest.TestCase):
             created.append(True)
             return StubPlaylist()
 
-        registry = DeviceRegistry(factory)
+        registry = DeviceManager(factory)
         for fields in (
-            ("invalid", str(uuid4()), None),
-            (str(uuid4()), "invalid", None),
-            (str(uuid4()), str(uuid4()), "invalid"),
+            ("invalid", None),
+            (str(uuid4()), "invalid"),
         ):
             with self.subTest(fields=fields):
                 with self.assertRaises(ValueError):

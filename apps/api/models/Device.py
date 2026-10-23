@@ -1,7 +1,11 @@
 from collections.abc import Callable
 from datetime import datetime, timezone
 from threading import Lock
-from utils import UUID, _validate_uuid
+
+if __package__ == "models":
+    from utils import _validate_uuid
+else:
+    from ..utils import _validate_uuid
 
 from .Playlist import Playlist
 

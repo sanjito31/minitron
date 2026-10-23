@@ -15,7 +15,9 @@ def make_module():
     module.NAME = "Test Graphic"
     module.AUTHOR = "test-author"
     module.DEFAULT_CONFIG = {"style": {"color": "white"}}
-    module.update = Mock(return_value={"value": "data"})
+    module.update = Mock(return_value=(
+        {"value": "data"}, datetime.now(timezone.utc) + timedelta(minutes=1)
+    ))
     module.render = Mock(
         return_value=(b"graphic", datetime.now(timezone.utc) + timedelta(minutes=1))
     )
@@ -31,10 +33,10 @@ class AppTests(unittest.TestCase):
         self.assertEqual(set(vars(app)), {"id", "config", "update_fn", "render_fn"})
 
     def test_calls_forward_request_inputs_and_preserve_none_update(self):
-        updater = Mock(side_effect=[{"label": "first"}, None])
+        updater = Mock(side_effect=[({"label": "first"}, datetime.now(timezone.utc)), None])
         renderer = Mock(return_value=(b"graphic", datetime.now(timezone.utc)))
         app = App("clock", {}, updater, renderer)
-        first = app.update({"label": "first"})
+        first, _ = app.update({"label": "first"})
         self.assertIsNone(app.update({"label": "second"}))
         app.render(first, {"label": "first"})
         renderer.assert_called_once_with({"label": "first"}, {"label": "first"})
@@ -85,7 +87,7 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(record.revision, "code-hash")
         self.assertEqual(record.source, "apps/app_permanent_id.py")
         config = {"location": "NYC"}
-        data = record.app.update(config)
+        data, _ = record.app.update(config)
         module.update.assert_called_once_with(config, services=services)
         record.app.render(data, config)
         module.render.assert_called_once_with(data, config)
@@ -102,10 +104,12 @@ class RegistryTests(unittest.TestCase):
         invalid_fields = (
             ("NAME", ""),
             ("AUTHOR", None),
+            ("DEFAULT_CONFIG", None),
             ("DEFAULT_CONFIG", []),
             ("update", None),
-            ("update", lambda config: {}),
+            ("update", lambda: {}),
             ("update", asynchronous),
+            ("render", None),
             ("render", lambda data: b"bad signature"),
         )
         for field, value in invalid_fields:

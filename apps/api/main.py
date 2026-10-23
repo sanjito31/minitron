@@ -1,67 +1,100 @@
-from fastapi import FastAPI
-from fastapi.responses import Response
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from contextlib import asynccontextmanager
 from datetime import datetime
 import json
 
-from models.Carousel import AppCarousel
-from apps import app_registry
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from pydantic import BaseModel, UUID4
+from starlette.concurrency import run_in_threadpool
+from uuid import UUID
+
+if __package__:
+    from .models.Device import DeviceManager
+    from .models.Loader import AppLoader
+    from .models.Registry import app_registry
+else:
+    from models.Device import DeviceManager
+    from models.Loader import AppLoader
+    from models.Registry import app_registry
 
 
-server = FastAPI()
-PORT = 8000
+class FrameRequest(BaseModel):
+    device_id: UUID4
+    request_id: UUID
 
-server.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-
-
-@server.get("/api/test")
-async def test():
-    from apps import weather_app
-
-    weather_app.update()
-    return Response(content=weather_app.render(), media_type="image/webp")
-
-
-# ----------------------------------------------
-# Main Current Frame Endpoint
-# ----------------------------------------------
-carousel = AppCarousel(app_registry)
-
-@server.get("/api/current")
-async def current():
-    return Response(content=carousel.render_current(), media_type="image/webp")
-
-
-
-
-LOG_FILE = "app.log"
 
 class LogEntry(BaseModel):
     message: str
     time: datetime
 
 
-@server.post("/api/logs", status_code=201)
-async def logs(entry: LogEntry):
-    with open(LOG_FILE, "a") as f:
-        log = {
-            "message": entry.message,
-            "time": entry.time.isoformat()
-        }
-        f.write(json.dumps(log))
-    return {"status": "logged"}
+def create_server(
+    *,
+    registry=None,
+    load_apps=True, 
+    services=None
+):
+    registry = registry if registry is not None else app_registry
+    manager = DeviceManager()
+    loader = AppLoader(registry, services=services)
 
+    @asynccontextmanager
+    async def lifespan(app):
+        if load_apps:
+            await run_in_threadpool(loader.load_catalog)
+        yield
+
+    app = FastAPI(lifespan=lifespan)
+    app.state.device_manager = manager
+    app.state.app_registry = registry
+    app.state.app_loader = loader
+    
+    app.add_middleware(
+        CORSMiddleware, 
+        allow_origins=["*"], 
+        allow_credentials=True,
+        allow_methods=["*"], 
+        allow_headers=["*"],
+    )
+
+    @app.post("/api/current")
+    def current(request: FrameRequest):
+        # Sync endpoint: SQLAlchemy, upstream calls, and rendering run in the
+        # framework's thread pool rather than blocking the async event loop.
+        try:
+            graphic = manager.handle_frame_request(
+                str(request.device_id), 
+                str(request.request_id)
+            )
+        except DeviceNotFound:
+            raise HTTPException(
+                status_code=404, 
+                detail="Device is not registered."
+            )
+        
+        if graphic is None:
+            raise HTTPException(
+                status_code=503, 
+                detail="No graphic is currently available.",
+                headers={"Retry-After": "1"},
+            )
+        
+        return Response(content=graphic, media_type="image/webp")
+
+
+    @app.post("/api/logs", status_code=201)
+    def logs(entry: LogEntry):
+        with open("app.log", "a") as file:
+            file.write(json.dumps({"message": entry.message, "time": entry.time.isoformat()}))
+        return {"status": "logged"}
+
+    return app
+
+
+server = create_server()
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:server", host="0.0.0.0", port=PORT, reload=True)
+    uvicorn.run("main:server", host="0.0.0.0", port=8000, reload=True)

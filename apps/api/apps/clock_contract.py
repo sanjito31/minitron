@@ -27,7 +27,7 @@ DEFAULT_CONFIG = {
 }
 
 
-def update(config: dict, *, services: object = None) -> dict:
+def update(config: dict, *, services: object = None) -> tuple[dict, datetime]:
     now = datetime.now(timezone.utc)
     current_time = now.astimezone(
         ZoneInfo(config.get("timezone", DEFAULT_CONFIG["timezone"]))
@@ -44,10 +44,11 @@ def update(config: dict, *, services: object = None) -> dict:
     if ttl <= 0 or (isinstance(ttl, float) and not isfinite(ttl)):
         raise ValueError("Clock ttl must be a positive finite number of seconds.")
     next_minute = now.replace(second=0, microsecond=0) + timedelta(minutes=1)
+    expires_at = min(next_minute, now + timedelta(seconds=min(ttl, 60)))
     return {
         "time_str": f"{hour_text}:{current_time.minute:02d}{meridian}",
-        "expires_at": min(next_minute, now + timedelta(seconds=min(ttl, 60))),
-    }
+        "expires_at": expires_at,
+    }, expires_at
 
 
 def render(data: dict, config: dict) -> tuple[bytes, datetime]:

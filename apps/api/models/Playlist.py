@@ -45,11 +45,25 @@ class PlaylistApp:
         ):
             return self.cached_gfx_bytes
 
-        data = app.update(deepcopy(config))
-        if data is None:
+        result = app.update(deepcopy(config))
+        if result is None:
             return None
+        if not isinstance(result, tuple) or len(result) != 2:
+            raise TypeError("App.update() must return (data, expiration) or None.")
+        data, data_expires = result
+        if not isinstance(data, dict):
+            raise TypeError("App.update() data must be a dictionary.")
+        if (
+            not isinstance(data_expires, datetime)
+            or data_expires.tzinfo is None
+            or data_expires.utcoffset() is None
+        ):
+            raise ValueError("App.update() must return a timezone-aware expiration.")
 
-        graphic, expires = app.render(data, deepcopy(config))
+        rendered = app.render(data, deepcopy(config))
+        if not isinstance(rendered, tuple) or len(rendered) != 2:
+            raise TypeError("App.render() must return (graphic bytes, expiration).")
+        graphic, expires = rendered
         if not isinstance(graphic, bytes):
             raise TypeError("App.render() must return graphic bytes.")
         if (
@@ -62,7 +76,9 @@ class PlaylistApp:
         # Publish only a complete valid result. Failed refreshes preserve the
         # previous cache without treating expired or incompatible bytes as fresh.
         self.cached_gfx_bytes = graphic
-        self.cached_gfx_expires = expires.astimezone(timezone.utc)
+        self.cached_gfx_expires = min(
+            data_expires.astimezone(timezone.utc), expires.astimezone(timezone.utc)
+        )
         self._cached_config = config
         # Detect registry replacement without keeping a retired App alive.
         self._cached_app = ref(app)

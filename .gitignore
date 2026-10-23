@@ -2,3 +2,6 @@
 .vscode
 
 *.env
+
+.app_catalog.lock
+.app_catalog-*.tmp

@@ -7,8 +7,9 @@ from typing import Any
 
 Config = dict[str, Any]
 AppData = dict[str, Any]
+UpdateResult = tuple[AppData, datetime]
 RenderResult = tuple[bytes, datetime]
-Updater = Callable[[Config], AppData | None]
+Updater = Callable[[Config], UpdateResult | None]
 Renderer = Callable[[AppData, Config], RenderResult]
 
 
@@ -45,7 +46,7 @@ class App:
         self.update_fn = update
         self.render_fn = render
 
-    def update(self, config: Config) -> AppData | None:
+    def update(self, config: Config) -> UpdateResult | None:
         return self.update_fn(config)
 
     def render(self, data: AppData, config: Config) -> RenderResult:

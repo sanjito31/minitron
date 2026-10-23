@@ -8,7 +8,7 @@ from unittest.mock import patch
 from PIL import Image
 
 from apps.api.apps import clock_contract
-from apps.api.models.Device import DeviceManager
+from apps.api.models.Device import Device
 from apps.api.models.Playlist import Playlist, PlaylistApp
 from apps.api.models.Registry import app_registry
 
@@ -18,7 +18,9 @@ class ClockContractTests(unittest.TestCase):
         config = clock_contract.DEFAULT_CONFIG | (overrides or {})
         with patch.object(clock_contract, "datetime") as clock:
             clock.now.return_value = now
-            return clock_contract.update(config, services=None)
+            data, expires = clock_contract.update(config, services=None)
+            self.assertEqual(expires, data["expires_at"])
+            return data
 
     def test_timezones_and_12_and_24_hour_display(self):
         now = datetime(2026, 10, 21, 17, 5, 45, 250000, tzinfo=timezone.utc)
@@ -100,7 +102,7 @@ class ClockContractTests(unittest.TestCase):
         config = clock_contract.DEFAULT_CONFIG | {
             "width": 128, "height": 64, "bg": [10, 20, 30], "fg": [255, 0, 0]
         }
-        data = clock_contract.update(config, services=None)
+        data, _ = clock_contract.update(config, services=None)
         graphic, _ = clock_contract.render(data, config)
         with Image.open(BytesIO(graphic)) as image:
             self.assertEqual(image.size, (128, 64))
@@ -116,7 +118,7 @@ class ClockContractTests(unittest.TestCase):
             entry = PlaylistApp("clock-example", config={"24hourtime": True})
             device_id = "8a9f734c-0b22-4eaf-9dbb-97d56d3e8120"
             request_id = "8a9f734c-0b22-4eaf-9dbb-97d56d3e8121"
-            device = DeviceManager(device_id, request_id, playlist=Playlist([entry]))
+            device = Device(device_id, playlist=Playlist([entry]))
             with patch.object(module, "datetime") as clock:
                 # Keep expiration away from the real next-minute boundary so
                 # the integration test cannot race normal cache expiration.

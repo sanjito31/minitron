@@ -2,6 +2,9 @@
 
 A custom backend API for the [Minitron LED Panel](https://github.com/sanjito31/minitron-hdk) hardware project. This API fetches, processes, and renders various information sources as WebP images optimized for a 64x32 LED matrix display.
 
+See [the app contract and loader guide](APP_CONTRACT.md) to add graphic modules,
+configure playlist overrides, and preserve permanent app UUIDs.
+
 ## Screenshots
 
 | Clock | Weather | Flights Overhead |

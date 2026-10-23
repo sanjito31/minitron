@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from apps.api.models.App import App
-from apps.api.models.Device import DeviceManager
+from apps.api.models.Device import Device
 from apps.api.models.Playlist import Playlist, PlaylistApp
 from apps.api.models.Registry import app_registry
 
@@ -17,7 +17,7 @@ class PlaylistTests(unittest.TestCase):
         registry_patch.start()
         self.addCleanup(registry_patch.stop)
         self.expires = datetime.now(timezone.utc) + timedelta(minutes=10)
-        self.updater = Mock(return_value={"value": "data"})
+        self.updater = Mock(return_value=({"value": "data"}, self.expires))
         self.renderer = Mock(return_value=(b"graphic", self.expires))
         self.app = App(
             "clock", {"timezone": "UTC", "24hourtime": False},
@@ -113,7 +113,7 @@ class PlaylistTests(unittest.TestCase):
         def update(config):
             config["style"]["color"] = "red"
             config["timezone"] = "changed"
-            return {}
+            return {}, self.expires
 
         def render(data, config):
             self.assertEqual(config["style"]["color"], "white")
@@ -148,7 +148,7 @@ class PlaylistTests(unittest.TestCase):
     def test_replacement_app_invalidates_fresh_graphic(self):
         playlist = Playlist([PlaylistApp("clock")])
         playlist.get_graphic()
-        new_updater = Mock(return_value={})
+        new_updater = Mock(return_value=({}, self.expires))
         app_registry["clock"] = App(
             "clock", self.app.config, new_updater,
             lambda data, config: (b"new revision", self.expires),
@@ -158,13 +158,13 @@ class PlaylistTests(unittest.TestCase):
 
     def test_registry_swap_during_update_uses_original_renderer_for_that_call(self):
         replacement = App(
-            "clock", {}, lambda config: {},
+            "clock", {}, lambda config: ({}, self.expires),
             lambda data, config: (b"new revision", self.expires),
         )
 
         def update(config):
             app_registry["clock"] = replacement
-            return {"old": True}
+            return {"old": True}, self.expires
 
         self.updater.side_effect = update
         playlist = Playlist([PlaylistApp("clock")])
@@ -176,7 +176,7 @@ class PlaylistTests(unittest.TestCase):
         missing = PlaylistApp("clock")
         available = PlaylistApp("other")
         app_registry["other"] = App(
-            "other", {}, lambda config: {},
+            "other", {}, lambda config: ({}, self.expires),
             lambda data, config: (b"other graphic", self.expires),
         )
         playlist = Playlist([missing, available])
@@ -241,6 +241,39 @@ class PlaylistTests(unittest.TestCase):
         self.assertEqual(entry.cached_gfx_expires.tzinfo, timezone.utc)
         self.assertEqual(entry.cached_gfx_expires, self.expires)
 
+    def test_graphic_cache_uses_earlier_update_or_render_expiration(self):
+        earlier = self.expires - timedelta(minutes=1)
+        for update_expires, render_expires in (
+            (earlier, self.expires), (self.expires, earlier),
+        ):
+            with self.subTest(update=update_expires, render=render_expires):
+                self.updater.return_value = ({"value": "data"}, update_expires)
+                self.renderer.return_value = (b"graphic", render_expires)
+                entry = PlaylistApp("clock")
+                Playlist([entry]).get_graphic()
+                self.assertEqual(entry.cached_gfx_expires, earlier)
+
+    def test_invalid_update_outputs_do_not_render_or_overwrite_cache(self):
+        entry = PlaylistApp("clock")
+        playlist = Playlist([entry])
+        playlist.get_graphic()
+        entry.config["timezone"] = "America/New_York"
+        self.renderer.reset_mock()
+        for invalid, error in (
+            ({"legacy": "no explicit deadline"}, TypeError),
+            (({},), TypeError),
+            (("not a dict", self.expires), TypeError),
+            (({}, None), ValueError),
+            (({}, datetime(2026, 1, 1)), ValueError),
+        ):
+            with self.subTest(result=invalid):
+                self.updater.return_value = invalid
+                with self.assertRaises(error):
+                    playlist.get_graphic()
+                self.renderer.assert_not_called()
+                self.assertEqual(entry.cached_gfx_bytes, b"graphic")
+                self.assertEqual(entry.cached_gfx_expires, self.expires)
+
     def test_repeated_app_placements_have_separate_graphics_and_configs(self):
         self.renderer.side_effect = lambda data, config: (
             str(config["24hourtime"]).encode(), self.expires
@@ -259,7 +292,7 @@ class PlaylistTests(unittest.TestCase):
         playlist = Playlist([PlaylistApp("clock"), PlaylistApp("clock")])
         device_id = str(uuid4())
         first_request = str(uuid4())
-        device = DeviceManager(device_id, first_request, playlist=playlist)
+        device = Device(device_id, playlist=playlist)
         device.handle_request(device_id, first_request)
         device.handle_request(device_id, first_request)
         self.assertEqual(self.updater.call_count, 1)
@@ -274,7 +307,7 @@ class PlaylistTests(unittest.TestCase):
         playlist = Playlist([PlaylistApp("clock"), PlaylistApp("clock")])
         device_id = str(uuid4())
         request_id = str(uuid4())
-        device = DeviceManager(device_id, request_id, playlist=playlist)
+        device = Device(device_id, playlist=playlist)
         device.handle_request(device_id, request_id)
         next_request = str(uuid4())
         barrier = Barrier(8)
