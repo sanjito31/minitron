@@ -186,10 +186,10 @@ class AppLoaderTests(unittest.TestCase):
             f"app_{UUID(clock_id).hex}.py": clock_id,
             f"app_{UUID(weather_id).hex}.py": weather_id,
         })
-        self.assertEqual(catalog["default_playlist"], [clock_id, weather_id])
+        self.assertEqual(catalog["default_playlist"], [clock_id])
         self.assertEqual(
             [record.app.id for record in self.registry.get_default_playlist()],
-            [clock_id, weather_id],
+            [clock_id],
         )
         Path(self.registry.get_registration(clock_id).source).write_text(
             APP_SOURCE.replace('NAME = "Test Graphic"', 'NAME = "Renamed clock"')
@@ -197,7 +197,7 @@ class AppLoaderTests(unittest.TestCase):
         self.loader.load_catalog()
         defaults = self.registry.get_default_playlist()
         self.assertEqual(defaults[0].name, "Renamed clock")
-        self.assertEqual([record.app.id for record in defaults], [clock_id, weather_id])
+        self.assertEqual([record.app.id for record in defaults], [clock_id])
 
     def test_managed_filename_recovers_id_without_catalog(self):
         app_id = str(uuid4())

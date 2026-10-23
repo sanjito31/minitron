@@ -209,7 +209,7 @@ class AppLoader:
             default_ids = document.get("default_playlist")
             if default_ids is None:
                 # Migrate the original catalog before dropping its friendly keys.
-                default_ids = [catalog[name] for name in ("clock_contract.py", "weather_contract.py") if name in catalog]
+                default_ids = [catalog[name] for name in ("clock_contract.py",) if name in catalog]
             if (
                 not isinstance(default_ids, list)
                 or any(not isinstance(value, str) or value not in catalog.values() for value in default_ids)

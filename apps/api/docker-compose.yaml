@@ -14,3 +14,5 @@ services:
 
 networks:
   public-serve:
+    name: public_serve
+    external: true

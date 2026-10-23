@@ -152,7 +152,7 @@ Changing the system Python does not change an existing virtual environment.
 | `/api/logs` | POST | Accepts log entries from the hardware device |
 
 Send a device UUID and a request UUID. Unknown devices get an in-memory playlist
-containing clock, then weather. Retry the same request UUID until a frame succeeds;
+containing only Clock. Retry the same request UUID until a frame succeeds;
 use a new request UUID to advance. TTL controls cache freshness, independently of
 playlist rotation.
 
@@ -166,7 +166,7 @@ curl -X POST http://localhost:8000/api/current \
 Weather needs `OPEN_WEATHER_API_KEY`, `LAT`, and `LON` in the environment or the
 API directory's `.env`. The server and clock run without them; a weather request
 with missing settings or an unavailable provider returns 503 and can be retried.
-MTA and flights are loaded but are not in the default playlist. See the
+Weather, MTA, and flights are loaded but are not in the default playlist. See the
 [app guide](APP_CONTRACT.md) for provider settings and playlist overrides.
 
 ## Tech Stack

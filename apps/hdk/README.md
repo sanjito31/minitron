@@ -183,11 +183,11 @@ be successfully saved.
 The ESP32 expects a server running at the configured `SERVER_API_URL` with the following endpoint:
 
 ```http
-POST /api/devices/{device_id}/next
+POST /api/current
 Content-Type: application/json
 Accept: image/webp
 
-{"request_id":"550e8400-e29b-41d4-a716-446655440000"}
+{"device_id":"550e8400-e29b-41d4-a716-446655440000","request_id":"8a9f734c-0b22-4eaf-9dbb-97d56d3e8121"}
 ```
 
 `device_id` is the UUID loaded from NVS. `request_id` is a separate UUID v4
@@ -204,15 +204,15 @@ then generates a new ID. Rebooting discards any pending request ID.
 
 **Response**: HTTP 200 with raw WebP image data (binary) and a positive
 `Content-Length`. Both static and animated WebP are accepted. The server must
-honor repeated `request_id` values for the same device by returning the same
-graphic rather than advancing again.
+honor repeated `request_id` values for the same device by staying on the selected
+playlist entry, reusing its graphic while the cache remains fresh.
 
 ## How It Works
 
 1. **Startup**: ESP32 connects to WiFi, starts OTA, loads or creates its device UUID, and initializes the LED matrix display
 2. **Initial Display**: Shows a default "no apps" graphic from embedded assets
 3. **Image Polling Task**:
-   - Posts a request UUID to `SERVER_API_URL/api/devices/{device_id}/next`
+   - Posts the device UUID and request UUID as JSON to `SERVER_API_URL/api/current`
    - Retries the same request UUID if necessary and validates downloaded WebP frames
    - Decodes WebP and renders pixels to the LED matrix
    - Waits 10 seconds and repeats

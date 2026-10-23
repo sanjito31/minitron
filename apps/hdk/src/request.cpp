@@ -148,10 +148,11 @@ int requestGraphic(const String &URL, uint8_t **buf, size_t *len)
     if (pending_request_id[0] == '\0') {
         generate_uuid(pending_request_id);
     }
-    const String endpoint = URL + "/api/devices/" + device_id + "/next";
+    const String endpoint = URL + "/api/current";
     // UUIDs contain only hexadecimal digits and hyphens, so no JSON escaping is needed.
-    char json[sizeof("{\"request_id\":\"\"}") + UUID_LENGTH];
-    snprintf(json, sizeof(json), "{\"request_id\":\"%s\"}", pending_request_id);
+    char json[sizeof("{\"device_id\":\"\",\"request_id\":\"\"}") + 2 * UUID_LENGTH];
+    snprintf(json, sizeof(json), "{\"device_id\":\"%s\",\"request_id\":\"%s\"}",
+             device_id, pending_request_id);
     const String body(json);
 
     for (unsigned int attempt = 0; attempt < MAX_ATTEMPTS; ++attempt) {

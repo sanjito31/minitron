@@ -100,7 +100,7 @@ class Playlist:
 
     @classmethod
     def default(cls, *, registry: AppRegistry | None = None) -> "Playlist":
-        """Give a device its own clock/weather entries using the loaded UUIDs."""
+        """Give a device independent entries for the catalog-selected defaults."""
         registry = registry if registry is not None else app_registry
         entries = [
             PlaylistApp(record.app.id, name=record.name)

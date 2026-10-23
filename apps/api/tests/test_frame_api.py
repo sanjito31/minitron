@@ -15,6 +15,7 @@ import requests
 
 from apps.api import main
 from apps.api.models.Loader import AppLoader
+from apps.api.models.Playlist import PlaylistApp
 from apps.api.models.Registry import AppRegistry, app_registry
 
 
@@ -67,6 +68,10 @@ class FrameApiTests(unittest.TestCase):
             self.assertEqual(image.size, (64, 32))
             self.assertEqual(image.format, "WEBP")
 
+    def add_weather(self, device):
+        record = next(record for record in self.registry.snapshot().values() if record.name == "Weather")
+        device.playlist.add_app(PlaylistApp(record.app.id, name=record.name))
+
     def test_startup_loads_contract_apps_without_fetching_data(self):
         self.assertFalse(self.server.state.app_loader.errors)
         self.assertEqual(
@@ -75,20 +80,18 @@ class FrameApiTests(unittest.TestCase):
         )
         self.http.get.assert_not_called()
 
-    def test_unknown_device_gets_only_clock_weather_and_rotates_with_retry_caching(self):
+    def test_unknown_device_keeps_clock_only_for_retries_and_new_requests(self):
         self.assertIsNone(self.server.state.device_manager.get(self.device_id))
         self.assert_graphic(self.frame())
         device = self.server.state.device_manager.get(self.device_id)
-        self.assertEqual([entry.name for entry in device.playlist.apps], ["Clock", "Weather"])
+        self.assertEqual([entry.name for entry in device.playlist.apps], ["Clock"])
         self.http.get.assert_not_called()
-        weather_request = str(uuid4())
-        weather_response = self.frame(weather_request)
-        self.assert_graphic(weather_response)
-        self.assertEqual(device.playlist.current_app_idx, 1)
-        retried = self.frame(weather_request)
-        self.assertEqual(retried.content, weather_response.content)
-        self.http.get.assert_called_once()
-        self.assert_graphic(self.frame())
+        request_id = str(uuid4())
+        self.assert_graphic(self.frame(request_id))
+        self.assert_graphic(self.frame(request_id))
+        for _ in range(3):
+            self.assert_graphic(self.frame())
+        self.http.get.assert_not_called()
         self.assertEqual(device.playlist.current_app_idx, 0)
 
     def test_new_devices_have_independent_playlist_entries_and_overrides(self):
@@ -97,6 +100,8 @@ class FrameApiTests(unittest.TestCase):
         self.assert_graphic(self.frame(device_id=other_id))
         first = self.server.state.device_manager.get(self.device_id)
         second = self.server.state.device_manager.get(other_id)
+        self.add_weather(first)
+        self.add_weather(second)
         self.assertIsNot(first.playlist, second.playlist)
         self.assertIsNot(first.playlist.apps[1], second.playlist.apps[1])
         first.playlist.apps[1].config = {"lat": 0, "lon": 1, "units": "metric"}
@@ -108,6 +113,7 @@ class FrameApiTests(unittest.TestCase):
     def test_weather_timeout_returns_503_and_retry_stays_on_weather(self):
         first_request = str(uuid4())
         self.assert_graphic(self.frame(first_request))
+        self.add_weather(self.server.state.device_manager.get(self.device_id))
         self.http.get.side_effect = [requests.Timeout(), self.weather]
         request_id = str(uuid4())
         failed = self.frame(request_id)
@@ -120,11 +126,11 @@ class FrameApiTests(unittest.TestCase):
         self.assertEqual(device.last_request_id, request_id)
         self.assertEqual(device.playlist.current_app_idx, 1)
 
-    def test_missing_weather_credentials_do_not_block_initial_clock(self):
+    def test_missing_weather_credentials_do_not_affect_clock_only_defaults(self):
         self.assert_graphic(self.frame())
         with patch.dict(os.environ, {}, clear=True):
-            unavailable = self.frame()
-        self.assertEqual(unavailable.status_code, 503)
+            for _ in range(3):
+                self.assert_graphic(self.frame())
         self.http.get.assert_not_called()
 
 

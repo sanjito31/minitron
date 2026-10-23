@@ -74,11 +74,11 @@ class RequestTests(unittest.TestCase):
         self.assertEqual([cycle["generated"] for cycle in cycles], [1, 2])
         self.assertNotEqual(posts[0]["body"], posts[1]["body"])
         for post in posts:
-            self.assertEqual(post["url"],
-                             "http://server/api/devices/550e8400-e29b-41d4-a716-446655440000/next")
+            self.assertEqual(post["url"], "http://server/api/current")
             self.assertEqual(post["content_type"], "application/json")
             self.assertEqual(post["accept"], "image/webp")
-            self.assertEqual(set(post["body"]), {"request_id"})
+            self.assertEqual(set(post["body"]), {"device_id", "request_id"})
+            self.assertEqual(post["body"]["device_id"], "550e8400-e29b-41d4-a716-446655440000")
             self.assertEqual(uuid.UUID(post["body"]["request_id"]).version, 4)
 
     def test_successful_retry_within_a_cycle_uses_same_id(self):

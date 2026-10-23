@@ -55,7 +55,7 @@ catalog and registration UUID (filenames omit UUID hyphens).
 | Flights Overhead | [app_7bbefa52ec4145bfb0526be7bce8430f.py](apps/app_7bbefa52ec4145bfb0526be7bce8430f.py) |
 
 An unknown device UUID automatically creates an in-memory device with its own
-clock/weather playlist, in that order. MTA and flights are registered but are not
+Clock-only playlist. Weather, MTA, and flights are registered but are not
 added to default playlists. Each device's playlist entries, overrides, and caches
 are independent. Devices and playlists are not persisted.
 
@@ -128,9 +128,9 @@ destination files are never overwritten. A managed filename can recover its UUID
 even if the catalog entry is missing; a conflicting catalog UUID is rejected.
 
 The catalog's `default_playlist` array contains ordered app UUIDs. It selects
-clock and weather without depending on source filenames or display names. The
-original catalog format is migrated automatically, including its clock/weather
-defaults. Keep the catalog with the app files across restarts and deployments.
+Clock without depending on source filenames or display names. The original
+catalog format is migrated automatically with Clock as its default. Keep the
+catalog with the app files across restarts and deployments.
 
 Calling `load_catalog()` again reloads edited files into fresh module namespaces,
 keeps unchanged registrations, and unregisters removed files. Deleted filenames
