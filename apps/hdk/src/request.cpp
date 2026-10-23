@@ -6,7 +6,6 @@
 #include "ota.h"
 #include "request.h"
 #include "uuid.h"
-#include "webp/demux.h"
 
 namespace {
 constexpr int HTTP_TIMEOUT_MS = 3000;
@@ -20,31 +19,6 @@ char pending_request_id[UUID_LENGTH + 1] = {};
 bool requests_paused()
 {
     return ota_update_in_progress() || WiFi.status() != WL_CONNECTED;
-}
-
-bool valid_webp(const uint8_t *buffer, size_t length)
-{
-    const WebPData data = {buffer, length};
-    WebPAnimDecoder *decoder = WebPAnimDecoderNew(&data, nullptr);
-    if (decoder == nullptr) {
-        return false;
-    }
-
-    WebPAnimInfo info;
-    bool valid = WebPAnimDecoderGetInfo(decoder, &info) && info.frame_count > 0;
-    for (uint32_t i = 0; valid && i < info.frame_count; ++i) {
-        if (ota_update_in_progress()) {
-            valid = false;
-            break;
-        }
-        uint8_t *pixels = nullptr;
-        int timestamp = 0;
-        valid = WebPAnimDecoderGetNext(decoder, &pixels, &timestamp);
-        // Yield while checking animations without waiting for frame timestamps.
-        delay(1);
-    }
-    WebPAnimDecoderDelete(decoder);
-    return valid && !ota_update_in_progress();
 }
 
 int download_graphic(const String &endpoint, const String &body,
@@ -124,8 +98,8 @@ int download_graphic(const String &endpoint, const String &body,
         free(download);
         return -1;
     }
-    if (ota_update_in_progress() || !valid_webp(download, received)) {
-        Serial.println("WebP validation failed or was interrupted for OTA.");
+    if (ota_update_in_progress()) {
+        Serial.println("Image download cancelled for OTA.");
         free(download);
         return -1;
     }
@@ -162,7 +136,7 @@ int requestGraphic(const String &URL, uint8_t **buf, size_t *len)
         Serial.printf("Image request %s, attempt %u/%u\n",
                       pending_request_id, attempt + 1, MAX_ATTEMPTS);
         if (download_graphic(endpoint, body, buf, len) == 0) {
-            // A successful HTTP status alone is not enough: the entire WebP is valid.
+            // The body is complete; the graphics task handles WebP decoding.
             pending_request_id[0] = '\0';
             return 0;
         }
